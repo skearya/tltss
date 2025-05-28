@@ -1,3 +1,7 @@
+type Prettify<T> = {
+	[K in keyof T]: T[K];
+} & {};
+
 type Numbers = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 // prettier-ignore
 type LowercaseAlphabet = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z";
@@ -60,24 +64,28 @@ type Stmt =
 
 type Parser<Tokens extends Token[]> = Program<Tokens>;
 
+// (declaration)*
 type Program<Tokens extends Token[], Stmts extends Stmt[] = []> = Tokens["length"] extends 0
 	? Stmts
 	: Declaration<Tokens> extends [infer S extends Stmt, infer Tokens extends Token[]]
 	? Program<Tokens, [...Stmts, S]>
 	: never;
 
+// var-declaration | assignment-declaration | statement
 type Declaration<Tokens extends Token[]> = Tokens extends [{ type: "let" }, ...infer _]
 	? VarDeclaration<Tokens>
 	: Tokens extends [{ type: "identifier" }, ...infer _]
 	? AssignmentDeclaration<Tokens>
 	: Statement<Tokens>;
 
+// print-statement | block-statement | expression
 type Statement<Tokens extends Token[]> = Tokens extends [{ type: "print" }, ...infer _]
 	? PrintStatement<Tokens>
 	: Tokens extends [{ type: "left-brace" }, ...infer _]
 	? BlockStatement<Tokens>
 	: ExpressionStatement<Tokens>;
 
+// "let" identifier "=" expr ";"
 type VarDeclaration<Tokens extends Token[]> = Tokens extends [{ type: "let" }, ...infer Tokens extends Token[]]
 	? Tokens extends [{ type: "identifier"; name: infer Ident }, ...infer Tokens extends Token[]]
 		? Tokens extends [{ type: "equals" }, ...infer Tokens extends Token[]]
@@ -90,6 +98,7 @@ type VarDeclaration<Tokens extends Token[]> = Tokens extends [{ type: "let" }, .
 		: never
 	: never;
 
+// identifier "=" expr ";"
 type AssignmentDeclaration<Tokens extends Token[]> = Tokens extends [{ type: "identifier"; name: infer Ident }, ...infer Tokens extends Token[]]
 	? Tokens extends [{ type: "equals" }, ...infer Tokens extends Token[]]
 		? Term<Tokens> extends [infer Value extends Expr, infer Tokens extends Token[]]
@@ -100,6 +109,7 @@ type AssignmentDeclaration<Tokens extends Token[]> = Tokens extends [{ type: "id
 		: never
 	: never;
 
+// "print" expr ";"
 type PrintStatement<Tokens extends Token[]> = Tokens extends [{ type: "print" }, ...infer Tokens extends Token[]]
 	? Term<Tokens> extends [infer E extends Expr, infer Tokens extends Token[]]
 		? Tokens extends [{ type: "semicolon" }, ...infer Tokens extends Token[]]
@@ -108,6 +118,7 @@ type PrintStatement<Tokens extends Token[]> = Tokens extends [{ type: "print" },
 		: never
 	: never;
 
+// "{" (declaration)* "}"
 type BlockStatement<Tokens extends Token[]> = Tokens extends [{ type: "left-brace" }, ...infer Tokens extends Token[]] ? BlockStatementInner<Tokens> : never;
 
 type BlockStatementInner<Tokens extends Token[], Stmts extends Stmt[] = []> = Tokens extends [{ type: "right-brace" }, ...infer Tokens extends Token[]]
@@ -116,13 +127,14 @@ type BlockStatementInner<Tokens extends Token[], Stmts extends Stmt[] = []> = To
 	? BlockStatementInner<Tokens, [...Stmts, S]>
 	: never;
 
+// expr ";"
 type ExpressionStatement<Tokens extends Token[]> = Term<Tokens> extends [infer E extends Expr, infer Tokens extends Token[]]
 	? Tokens extends [{ type: "semicolon" }, ...infer Tokens extends Token[]]
 		? [{ type: "expression"; expr: E }, Tokens]
 		: never
 	: never;
 
-// Term -> factor (("+" | "-") factor)*
+// factor (("+" | "-") factor)*
 type Term<Tokens extends Token[]> = Factor<Tokens> extends [infer Left, infer Tokens extends Token[]] ? TermInner<Left, Tokens> : never;
 
 type TermInner<Left, Tokens extends Token[]> = Tokens extends [{ type: infer Op extends "plus" | "minus" }, ...infer Tokens extends Token[]]
@@ -131,7 +143,7 @@ type TermInner<Left, Tokens extends Token[]> = Tokens extends [{ type: infer Op 
 		: never
 	: [Left, Tokens];
 
-// Factor -> primary (("*" | "/") primary)*
+// primary (("*" | "/") primary)*
 type Factor<Tokens extends Token[]> = Primary<Tokens> extends [infer Left, infer Tokens extends Token[]] ? FactorInner<Left, Tokens> : never;
 
 type FactorInner<Left, Tokens extends Token[]> = Tokens extends [{ type: infer Op extends "star" | "slash" }, ...infer Tokens extends Token[]]
@@ -140,7 +152,7 @@ type FactorInner<Left, Tokens extends Token[]> = Tokens extends [{ type: infer O
 		: never
 	: [Left, Tokens];
 
-// Primary -> literal | "(" expr ")"
+// literal | identifier | "(" expr ")"
 type Primary<Tokens extends Token[]> = Tokens extends [{ type: "num"; num: infer Num extends number }, ...infer Tokens extends Token[]]
 	? [{ type: "literal"; num: Num }, Tokens]
 	: Tokens extends [{ type: "identifier"; name: infer Name extends string }, ...infer Tokens extends Token[]]
@@ -176,10 +188,11 @@ type EnvironmentDeclare<Env extends Environment, Name extends string, Value exte
 	locals: Env["locals"] & Record<Name, Value>;
 };
 
-type EnvironmentAssign<Env extends Environment, Name extends string, Value extends number> = {
-	enclosing: Env["enclosing"];
-	locals: Omit<Env["locals"], Name> & Record<Name, Value>;
-};
+type EnvironmentAssign<Env extends Environment, Name extends string, Value extends number> = Env["locals"][Name] extends infer _ extends number
+	? { enclosing: Env["enclosing"]; locals: Omit<Env["locals"], Name> & Record<Name, Value> }
+	: Env["enclosing"] extends infer Enclosing extends Environment
+	? { enclosing: EnvironmentAssign<Enclosing, Name, Value>; locals: Env["locals"] }
+	: never;
 
 type EnvironmentLookup<Env extends Environment, Name extends string> = Env["locals"][Name] extends infer Value extends number
 	? Value
@@ -201,7 +214,7 @@ type EvalExpr<Node extends Expr, Env extends Environment> =
 // prettier-ignore
 type EvalStmt<Node extends Stmt, Env extends Environment, Out extends string[]> = 
 	Node extends { type: "declaration" } ? [EnvironmentDeclare<Env, Node["name"], EvalExpr<Node['value'], Env>>, Out]
-	: Node extends { type: "assign" } ? [EnvironmentDeclare<Env, Node["name"], EvalExpr<Node['value'], Env>>, Out]
+	: Node extends { type: "assign" } ? [EnvironmentAssign<Env, Node["name"], EvalExpr<Node['value'], Env>>, Out]
 	: Node extends { type: "print" } ? [Env, [...Out, `${EvalExpr<Node["expr"], Env>}`]]
 	: Node extends { type: "expression" } ? [Env, Out]
 	: Node extends { type: "block" } ? Eval<Node["stmts"], EnvironmentEnclosing<Env>, Out>
@@ -231,8 +244,8 @@ type Input2 = `
 	let x = 1;
 
 	{
-		let x = x + 1;
-		print x;
+		let y = x * 2;
+		x = y;
 	}
 
 	print x;
@@ -241,3 +254,11 @@ type Input2 = `
 type Tokens = Tokenizer<Input2>;
 type Statements = Parser<Tokens>;
 type Output = Evaluate<Statements>;
+
+type TestEnv = {
+	enclosing: {
+		enclosing: undefined;
+		locals: { x: 1 };
+	};
+	locals: { y: 2 };
+};
