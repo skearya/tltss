@@ -166,6 +166,11 @@ type Environment = {
 	locals: Record<string, number>;
 };
 
+type EnvironmentEnclosing<Env extends Environment> = {
+	enclosing: Env;
+	locals: {};
+};
+
 type EnvironmentDeclare<Env extends Environment, Name extends string, Value extends number> = {
 	enclosing: Env["enclosing"];
 	locals: Env["locals"] & Record<Name, Value>;
@@ -176,10 +181,11 @@ type EnvironmentAssign<Env extends Environment, Name extends string, Value exten
 	locals: Omit<Env["locals"], Name> & Record<Name, Value>;
 };
 
-type EnvironmentEnclosing<Env extends Environment> = {
-	enclosing: Env;
-	locals: {};
-};
+type EnvironmentLookup<Env extends Environment, Name extends string> = Env["locals"][Name] extends infer Value extends number
+	? Value
+	: Env["enclosing"] extends infer Env extends Environment
+	? EnvironmentLookup<Env, Name>
+	: never;
 
 // prettier-ignore
 type EvalExpr<Node extends Expr, Env extends Environment> = 
@@ -189,7 +195,7 @@ type EvalExpr<Node extends Expr, Env extends Environment> =
 	: Node extends { type: "mul" } ? Mul<ForceNum<EvalExpr<Node["left"], Env>>, ForceNum<EvalExpr<Node["right"], Env>>>
 	: Node extends { type: "div" } ? Div<ForceNum<EvalExpr<Node["left"], Env>>, ForceNum<EvalExpr<Node["right"], Env>>>
 	: Node extends { type: "literal" } ? Node["num"]
-    : Node extends { type: "identifier" } ? Env["locals"][Node["name"]]
+    : Node extends { type: "identifier" } ? EnvironmentLookup<Env, Node["name"]>
 	: never;
 
 // prettier-ignore
@@ -225,7 +231,7 @@ type Input2 = `
 	let x = 1;
 
 	{
-		let x = 2;
+		let x = x + 1;
 		print x;
 	}
 
