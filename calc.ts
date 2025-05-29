@@ -1,13 +1,8 @@
-type Prettify<T> = {
-	[K in keyof T]: T[K];
-} & {};
-
 type Numbers = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 // prettier-ignore
 type LowercaseAlphabet = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z";
 // prettier-ignore
 type UppercaseAlphabet = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z";
-
 type ValidIdentifier = Numbers | LowercaseAlphabet | UppercaseAlphabet | "_";
 
 type Token =
@@ -70,7 +65,7 @@ type Expr =
 	| { type: "literal"; num: number }
 	| { type: "identifier"; name: string }
 	| { type: "function"; argument: string; expr: Expr }
-	| { type: "call"; callee: Expr; argument: Expr };
+	| { type: "call"; callee: Expr; argument: Expr | undefined };
 
 type Stmt =
 	| { type: "declaration"; name: string; value: Expr }
@@ -172,11 +167,13 @@ type FactorInner<Left, Tokens extends Token[]> = Tokens extends [{ type: infer O
 		: never
 	: [Left, Tokens];
 
-// primary ("(" expr ")")*
+// primary ("(" expr? ")")*
 type Call<Tokens extends Token[]> = Primary<Tokens> extends [infer Left, infer Tokens extends Token[]] ? CallInner<Left, Tokens> : never;
 
 type CallInner<Left, Tokens extends Token[]> = Tokens extends [{ type: "left-paren" }, ...infer Tokens extends Token[]]
-	? Expression<Tokens> extends [infer Expr, infer Tokens extends Token[]]
+	? Tokens extends [{ type: "right-paren" }, ...infer Tokens extends Token[]]
+		? CallInner<{ type: "call"; callee: Left; argument: undefined }, Tokens>
+		: Expression<Tokens> extends [infer Expr, infer Tokens extends Token[]]
 		? Tokens extends [{ type: "right-paren" }, ...infer Tokens extends Token[]]
 			? CallInner<{ type: "call"; callee: Left; argument: Expr }, Tokens>
 			: never
@@ -261,7 +258,8 @@ type EvalExpr<Node extends Expr, Env extends Environment> = Node extends { type:
 	? { argument: Node["argument"]; expr: Node["expr"] }
 	: Node extends { type: "call" }
 	? EvalExpr<Node["callee"], Env> extends { argument: infer Arg extends string; expr: infer Fn extends Expr }
-		? EvalExpr<Fn, EnvironmentDeclare<EnvironmentEnclosing<Env>, Arg, EvalExpr<Node["argument"], Env>>>
+		? // TODO: Better default argument behaviour
+		  EvalExpr<Fn, EnvironmentDeclare<EnvironmentEnclosing<Env>, Arg, Node["argument"] extends infer Arg extends Expr ? EvalExpr<Arg, Env> : 0>>
 		: never
 	: never;
 
@@ -309,19 +307,19 @@ type Input2 = `
 `;
 
 type Input3 = `
-	let f = x -> x + 1;
-	print f(1);
-
-	let y = x -> (z -> z + 2);
-	print y(0)(2);
-`;
-
-type Input4 = `
 	let x = 1 + 1;
 	print x;
 `;
 
-type Tokens = Tokenizer<Input3>;
+type Input4 = `
+	let f = x -> x + 1;
+	print f(1);
+
+	let a = x -> z -> z * 2;
+	print a(0)(2);
+`;
+
+type Tokens = Tokenizer<Input4>;
 type Statements = Parser<Tokens>;
 type Output = Evaluate<Statements>;
 
@@ -332,3 +330,7 @@ type TestEnv = {
 	};
 	locals: { y: 2 };
 };
+
+type Prettify<T> = {
+	[K in keyof T]: T[K];
+} & {};
