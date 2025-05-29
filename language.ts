@@ -1,9 +1,11 @@
 type Numbers = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+
 // prettier-ignore
 type LowercaseAlphabet = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z";
 // prettier-ignore
 type UppercaseAlphabet = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z";
-type ValidIdentifier = Numbers | LowercaseAlphabet | UppercaseAlphabet | "_";
+
+type ValidIdentifier = LowercaseAlphabet | UppercaseAlphabet | "_";
 
 type Token =
 	| { type: "semicolon" }
@@ -50,10 +52,22 @@ export type Tokenizer<Input extends string, Tokens extends Token[] = []> = Input
 	? Tokenizer<Rest, [...Tokens, { type: "star" }]>
 	: Input extends `/${infer Rest}`
 	? Tokenizer<Rest, [...Tokens, { type: "slash" }]>
-	: Input extends `${infer Num extends number}${infer Rest}`
-	? Tokenizer<Rest, [...Tokens, { type: "num"; num: Num }]>
 	: Input extends `${infer Ident extends ValidIdentifier}${infer Rest}`
 	? Tokenizer<Rest, [...Tokens, { type: "identifier"; name: Ident }]>
+	: Input extends `${infer Num0 extends Numbers}${infer Num1 extends Numbers}${infer Num2 extends Numbers}${infer Num3 extends Numbers}${infer Rest}`
+	? `${Num0}${Num1}${Num2}${Num3}` extends `${infer Num extends number}`
+		? Tokenizer<Rest, [...Tokens, { type: "num"; num: Num }]>
+		: never
+	: Input extends `${infer Num0 extends Numbers}${infer Num1 extends Numbers}${infer Num2 extends Numbers}${infer Rest}`
+	? `${Num0}${Num1}${Num2}` extends `${infer Num extends number}`
+		? Tokenizer<Rest, [...Tokens, { type: "num"; num: Num }]>
+		: never
+	: Input extends `${infer Num0 extends Numbers}${infer Num1 extends Numbers}${infer Rest}`
+	? `${Num0}${Num1}` extends `${infer Num extends number}`
+		? Tokenizer<Rest, [...Tokens, { type: "num"; num: Num }]>
+		: never
+	: Input extends `${infer Num extends number}${infer Rest}`
+	? Tokenizer<Rest, [...Tokens, { type: "num"; num: Num }]>
 	: Tokens;
 
 type Expr =

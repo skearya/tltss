@@ -38,6 +38,12 @@ type Input4 = `
 	print a(x -> x + 1);
 `;
 
-type Tokens = Tokenizer<Input4>;
+type Input5 = `
+	let x = 30;
+
+	print x * x;
+`;
+
+type Tokens = Tokenizer<Input5>;
 type Statements = Parser<Tokens>;
 type Output = Evaluate<Statements>;
