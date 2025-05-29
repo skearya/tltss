@@ -1,3 +1,70 @@
+// # Playground
+
+type Input = `
+	print 1 + 1;
+`;
+
+type Tokens = Tokenizer<Input>;
+type Statements = Parser<Tokens>;
+
+// Hover for result!
+type Output = Evaluate<Statements>;
+
+// # Examples
+
+type Example = `
+    let x = 1;
+	let y = x * 2;
+	x = y + 3;
+
+    print x;
+	print x * x * x;
+`;
+
+type Example2 = `
+	let x = 1;
+
+	{
+		let y = x * 2;
+		x = y;
+	}
+
+	print x;
+`;
+
+type Example3 = `
+	let x = 1;
+
+	let f = x -> x + 1;
+	print f(x);
+
+	x = 2;
+
+	let a = a -> b -> a * b;
+	print a(x)(x);
+`;
+
+type Example4 = `
+	let a = f -> f(1);
+
+	print a(x -> x + 1);
+`;
+
+type ExampleTests = [
+	Expect<Equal<Evaluate<Parser<Tokenizer<Example>>>, ["5", "125"]>>,
+	Expect<Equal<Evaluate<Parser<Tokenizer<Example2>>>, ["2"]>>,
+	Expect<Equal<Evaluate<Parser<Tokenizer<Example3>>>, ["2", "4"]>>,
+	Expect<Equal<Evaluate<Parser<Tokenizer<Example4>>>, ["2"]>>
+];
+
+// # Helpers
+
+// https://github.com/MichiganTypeScript/type-testing
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+type Expect<T extends true> = Equal<T, true>;
+
+// # Language implementation
+
 type Numbers = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 
 // prettier-ignore
@@ -24,7 +91,7 @@ type Token =
 	| { type: "num"; num: number }
 	| { type: "identifier"; name: string };
 
-export type Tokenizer<Input extends string, Tokens extends Token[] = []> = Input extends `${" " | "\n" | "\t" | "\r"}${infer Rest}`
+type Tokenizer<Input extends string, Tokens extends Token[] = []> = Input extends `${" " | "\n" | "\t" | "\r"}${infer Rest}`
 	? Tokenizer<Rest, Tokens>
 	: Input extends `;${infer Rest}`
 	? Tokenizer<Rest, [...Tokens, { type: "semicolon" }]>
@@ -88,7 +155,7 @@ type Stmt =
 	| { type: "expression"; expr: Expr }
 	| { type: "block"; stmts: Stmt[] };
 
-export type Parser<Tokens extends Token[]> = Program<Tokens>;
+type Parser<Tokens extends Token[]> = Program<Tokens>;
 
 // (declaration)*
 type Program<Tokens extends Token[], Stmts extends Stmt[] = []> = Tokens["length"] extends 0
@@ -298,4 +365,4 @@ type Eval<Stmts extends Stmt[], Env extends Environment = { enclosing: undefined
 		: never
 	: [Env["enclosing"], Out];
 
-export type Evaluate<Stmts extends Stmt[]> = Eval<Stmts> extends [infer Env extends Environment | undefined, infer Out extends string[]] ? Out : never;
+type Evaluate<Stmts extends Stmt[]> = Eval<Stmts> extends [infer Env extends Environment | undefined, infer Out extends string[]] ? Out : never;
