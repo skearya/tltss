@@ -22,7 +22,7 @@ type Token =
 	| { type: "num"; num: number }
 	| { type: "identifier"; name: string };
 
-type Tokenizer<Input extends string, Tokens extends Token[] = []> = Input extends `${" " | "\n" | "\t" | "\r"}${infer Rest}`
+export type Tokenizer<Input extends string, Tokens extends Token[] = []> = Input extends `${" " | "\n" | "\t" | "\r"}${infer Rest}`
 	? Tokenizer<Rest, Tokens>
 	: Input extends `;${infer Rest}`
 	? Tokenizer<Rest, [...Tokens, { type: "semicolon" }]>
@@ -74,7 +74,7 @@ type Stmt =
 	| { type: "expression"; expr: Expr }
 	| { type: "block"; stmts: Stmt[] };
 
-type Parser<Tokens extends Token[]> = Program<Tokens>;
+export type Parser<Tokens extends Token[]> = Program<Tokens>;
 
 // (declaration)*
 type Program<Tokens extends Token[], Stmts extends Stmt[] = []> = Tokens["length"] extends 0
@@ -205,7 +205,7 @@ type Sub<A extends number, B extends number> = Arr<A> extends [...Arr<B>, ...inf
 type Mul<A extends number, B extends number, Carry extends number = 0> = B extends 0 ? Carry : Mul<A, Sub<B, 1>, ForceNum<Add<A, Carry>>>;
 type Div<A extends number, B extends number, Carry extends number = 0> = A extends 0 ? Carry : Div<Sub<A, B>, B, ForceNum<Add<Carry, 1>>>;
 
-type Value = number | { argument: string; expr: Expr };
+type Value = number | { argument: string; expr: Expr; closure: Environment };
 
 type ValueDisplay<Val extends Value> = Val extends infer Num extends number
 	? `${Num}`
@@ -255,11 +255,11 @@ type EvalExpr<Node extends Expr, Env extends Environment> = Node extends { type:
 	: Node extends { type: "identifier" }
 	? EnvironmentLookup<Env, Node["name"]>
 	: Node extends { type: "function" }
-	? { argument: Node["argument"]; expr: Node["expr"] }
+	? { argument: Node["argument"]; expr: Node["expr"]; closure: Env }
 	: Node extends { type: "call" }
-	? EvalExpr<Node["callee"], Env> extends { argument: infer Arg extends string; expr: infer Fn extends Expr }
+	? EvalExpr<Node["callee"], Env> extends { argument: infer Arg extends string; expr: infer Fn extends Expr; closure: infer Closure extends Environment }
 		? // TODO: Better default argument behaviour
-		  EvalExpr<Fn, EnvironmentDeclare<EnvironmentEnclosing<Env>, Arg, Node["argument"] extends infer Arg extends Expr ? EvalExpr<Arg, Env> : 0>>
+		  EvalExpr<Fn, EnvironmentDeclare<EnvironmentEnclosing<Closure>, Arg, Node["argument"] extends infer Arg extends Expr ? EvalExpr<Arg, Env> : 0>>
 		: never
 	: never;
 
@@ -284,53 +284,4 @@ type Eval<Stmts extends Stmt[], Env extends Environment = { enclosing: undefined
 		: never
 	: [Env["enclosing"], Out];
 
-type Evaluate<Stmts extends Stmt[]> = Eval<Stmts> extends [infer Env extends Environment | undefined, infer Out extends string[]] ? Out : never;
-
-type Input = `
-    let x = 1;
-	let y = x * 2;
-	x = y + 3;
-
-    print x;
-	print x * x * x;
-`;
-
-type Input2 = `
-	let x = 1;
-
-	{
-		let y = x * 2;
-		x = y;
-	}
-
-	print x;
-`;
-
-type Input3 = `
-	let x = 1 + 1;
-	print x;
-`;
-
-type Input4 = `
-	let f = x -> x + 1;
-	print f(1);
-
-	let a = x -> z -> z * 2;
-	print a(0)(2);
-`;
-
-type Tokens = Tokenizer<Input4>;
-type Statements = Parser<Tokens>;
-type Output = Evaluate<Statements>;
-
-type TestEnv = {
-	enclosing: {
-		enclosing: undefined;
-		locals: { x: 1 };
-	};
-	locals: { y: 2 };
-};
-
-type Prettify<T> = {
-	[K in keyof T]: T[K];
-} & {};
+export type Evaluate<Stmts extends Stmt[]> = Eval<Stmts> extends [infer Env extends Environment | undefined, infer Out extends string[]] ? Out : never;
